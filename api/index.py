@@ -19,6 +19,8 @@ from datetime import datetime
 from modules.db_connector import DBConnector
 from modules.workload_analyzer import WorkloadAnalyzer
 from modules.recommender import Recommender
+from modules.evaluator import PerformanceEvaluator
+from modules.explain_parser import ExplainParser
 from modules.samples import get_samples, get_flat_workload
 from modules.fingerprint import WorkloadFingerprinter
 
