@@ -24,8 +24,9 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
-# ─── Absolute paths (works no matter what CWD Flask is started from) ──────────
-BASE_DIR    = os.path.dirname(os.path.abspath(__file__))
+# ─── Absolute paths
+# If we are in api/index.py (Vercel), we need to go up one level to find the root files
+BASE_DIR    = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_PATH = os.path.join(BASE_DIR, 'config.yaml')
 
 # Vercel filesystem fix: Use /tmp for SQLite DB
@@ -71,6 +72,12 @@ def get_db_connector():
 
 
 # ─── Routes ───────────────────────────────────────────────────────────────────
+@app.route('/health')
+@app.route('/api/health')
+def health():
+    return jsonify({'status': 'ok', 'vercel': os.environ.get('VERCEL') == '1'})
+
+
 @app.route('/')
 def home():
     conn = sqlite3.connect(DB_PATH)
