@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+
+# Large database dumps (Killing Vercel build)
+test_db/
+test_db-master/
+test_db-master.zip
+*.dump
+*.sql
+!static/
+!templates/
+!modules/
+
+# Local DB
+projects.db
+
+# PDFs if needed
+*.pdf
+
+# Logs
+*.log
