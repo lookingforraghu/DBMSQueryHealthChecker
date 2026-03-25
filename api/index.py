@@ -19,15 +19,14 @@ from datetime import datetime
 from modules.db_connector import DBConnector
 from modules.workload_analyzer import WorkloadAnalyzer
 from modules.recommender import Recommender
-from modules.evaluator import PerformanceEvaluator
-from modules.explain_parser import ExplainParser
 from modules.samples import get_samples, get_flat_workload
 from modules.fingerprint import WorkloadFingerprinter
 
 app = Flask(__name__, 
             template_folder=os.path.join(BASE_DIR, 'templates'),
             static_folder=os.path.join(BASE_DIR, 'static'))
-app.secret_key = secrets.token_hex(16)
+# Use a static secret key so Vercel cold-starts don't invalidate session cookies
+app.secret_key = os.environ.get('SECRET_KEY', 'db_tuner_pro_static_secret_key_12345')
 
 logging.basicConfig(
     level=logging.INFO,
