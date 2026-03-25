@@ -131,18 +131,24 @@ function initConnectionForm() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(creds),
       });
-      if (!res.ok) throw new Error(`Server error: ${res.status}`);
-      const data = await res.json();
-      if (data.status === 'success') {
+      
+      let data;
+      try {
+        data = await res.json();
+      } catch (parseErr) {
+        throw new Error(`Server returned ${res.status} without JSON.`);
+      }
+
+      if (res.ok && data.status === 'success') {
         if (connResult) connResult.innerHTML = '<div class="banner info">Connected! Redirecting…</div>';
         setTimeout(() => window.location.href = '/dashboard', 700);
       } else {
-        if (connResult) connResult.innerHTML = `<div class="banner error">${escapeHTML(data.message || 'Connection failed.')}</div>`;
+        if (connResult) connResult.innerHTML = `<div class="banner error">${escapeHTML(data.message || `HTTP ${res.status}: Connection failed.`)}</div>`;
         btnConnect.innerHTML = originalHTML;
         btnConnect.disabled  = false;
       }
     } catch (err) {
-      if (connResult) connResult.innerHTML = '<div class="banner error">Could not reach server. Is Flask running?</div>';
+      if (connResult) connResult.innerHTML = `<div class="banner error">${escapeHTML(err.message || 'Could not reach server. Is Flask running?')}</div>`;
       btnConnect.innerHTML = originalHTML;
       btnConnect.disabled  = false;
     }
