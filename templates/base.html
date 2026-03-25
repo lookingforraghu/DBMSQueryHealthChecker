@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DB Tuner Pro — SQL Workload Analyzer</title>
+  <meta name="description" content="Analyze SQL workloads, detect anti-patterns, and get intelligent index and partitioning recommendations.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Orbitron:wght@500;700&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+</head>
+<body>
+
+<canvas id="cyberCanvas" aria-hidden="true"></canvas>
+<!-- Aesthetic overlays: pointer-events none, purely decorative -->
+<div class="scanlines" aria-hidden="true"></div>
+<div class="noise-overlay" aria-hidden="true"></div>
+<div class="app-container">
+
+  <!-- ── Sidebar ──────────────────────────────────────────── -->
+  <aside class="sidebar">
+    <div class="logo">
+      <div class="logo-icon">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+        </svg>
+      </div>
+      <h2 class="flicker-logo">DB Tuner <span>Pro</span></h2>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-label">Workspace</div>
+      <a href="/" class="nav-item {% if request.path == '/' %}active{% endif %}">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/>
+        </svg>
+        New Analysis
+      </a>
+      <a href="/" class="nav-item {% if request.path == '/dashboard' %}active{% endif %}">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+          <path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>
+        </svg>
+        History
+      </a>
+      <a href="#" class="nav-item" onclick="handleExportClick(event)">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+          <polyline points="14 2 14 8 20 8"/>
+        </svg>
+        Reports
+      </a>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="db-status">
+        {% if db_status %}
+        <div class="status-dot online"></div>
+        <span>Connected</span>
+        <span class="engine-badge">MySQL</span>
+        {% else %}
+        <div class="status-dot offline"></div>
+        <span>Offline</span>
+        {% endif %}
+      </div>
+      <button class="btn btn-ghost btn-sm" style="margin-top:10px;width:100%;justify-content:center;" onclick="openConnectionModal()">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+        </svg>
+        {% if db_status %}Change Connection{% else %}Connect Database{% endif %}
+      </button>
+    </div>
+  </aside>
+
+  <!-- ── Main ──────────────────────────────────────────────── -->
+  <main class="main-content">
+    {% block topbar %}
+    <header class="topbar">
+      <div class="topbar-title">
+        <h1>SQL Workload Analyzer</h1>
+        <p>Detect anti-patterns and get intelligent index &amp; partitioning recommendations</p>
+      </div>
+    </header>
+    {% endblock %}
+
+    <div class="content-scroll">
+      <div id="globalBanner"></div>
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+</div>
+
+<!-- ── Connection Modal ───────────────────────────────────── -->
+<div id="connectionModal" class="modal-overlay hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <h2>Connect to Database</h2>
+      <p>Enter credentials for your target database</p>
+    </div>
+    <form id="connectionForm" class="modal-body">
+      <div class="form-group">
+        <label for="dbEngine">Engine</label>
+        <select id="dbEngine">
+          <option value="mysql">MySQL / MariaDB</option>
+          <option value="postgres">PostgreSQL</option>
+        </select>
+      </div>
+      <div class="form-row col-3-1">
+        <div>
+          <label for="dbHost">Host</label>
+          <input type="text" id="dbHost" value="localhost" required>
+        </div>
+        <div>
+          <label for="dbPort">Port</label>
+          <input type="number" id="dbPort" value="3306" required>
+        </div>
+      </div>
+      <div class="form-row">
+        <div>
+          <label for="dbUser">Username</label>
+          <input type="text" id="dbUser" value="root" required>
+        </div>
+        <div>
+          <label for="dbPass">Password</label>
+          <input type="password" id="dbPass" placeholder="Leave blank if none">
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="dbName">Database Name</label>
+        <input type="text" id="dbName" value="demodb" required>
+      </div>
+      <div class="form-group">
+        <label for="workloadPath">Workload File Path</label>
+        <input type="text" id="workloadPath" placeholder="C:\path\to\queries.txt" value="queries.txt" required>
+      </div>
+      <div id="connResult"></div>
+    </form>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-ghost" id="btnCloseModal">Cancel</button>
+      <button type="submit" form="connectionForm" class="btn btn-primary" id="btnConnect">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+          <polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/>
+        </svg>
+        Connect
+      </button>
+    </div>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+<script src="{{ url_for('static', filename='js/gradual-blur.js') }}"></script>
+<script src="{{ url_for('static', filename='js/cyber-effects.js') }}"></script>
+</body>
+</html>

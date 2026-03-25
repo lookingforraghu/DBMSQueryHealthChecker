@@ -1,0 +1,12 @@
+database:
+  host: "localhost"
+  port: 3306
+  user: "root"
+  password: "" # NO PASSWORD NEEDED FOR XAMPP
+  database: "demodb"
+
+system:
+  auto_apply: false
+  simulation_only: true
+  workload_source: "file" # "general_log", "performance_schema", or "file"
+  query_file: "queries.txt" # Used if workload_source is "file"

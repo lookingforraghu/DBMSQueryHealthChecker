@@ -1,0 +1,209 @@
+{% extends "base.html" %}
+
+{% block topbar %}
+<header class="topbar">
+  <div class="topbar-title">
+    <h1>Workload Analysis</h1>
+    <p>Real-time parsing · Anti-pattern detection · Index &amp; partition recommendations</p>
+  </div>
+  <div class="topbar-input-group">
+    <input type="text" id="dashboardWorkloadPath"
+      placeholder="Absolute path to workload file…"
+      value="{{ session.get('workload_path', '') }}" style="width:290px;">
+    <button id="runAnalysisBtn" class="btn btn-primary" {% if not db_status %}disabled{% endif %}>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <polygon points="5 3 19 12 5 21 5 3"/>
+      </svg>
+      Analyze
+    </button>
+    <button id="benchmarkBtn" class="btn btn-ghost" title="Run built-in Employees benchmark queries" {% if not db_status %}disabled{% endif %} onclick="openBenchmarkPicker()">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+      </svg>
+      Benchmark
+    </button>
+  </div>
+</header>
+
+<!-- Benchmark picker sheet -->
+<div id="benchmarkPicker" class="hidden" style="background:var(--surface-2);border-bottom:1px solid var(--border);padding:14px 24px;">
+  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+    <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:var(--text-muted);">Benchmark group:</span>
+    <button class="btn btn-ghost btn-sm" onclick="runBenchmark(null)">All Groups</button>
+    <button class="btn btn-ghost btn-sm" style="border-color:rgba(255,45,120,0.4);color:var(--magenta);" onclick="runBenchmark('full_scan_salary')">Full Table Scan</button>
+    <button class="btn btn-ghost btn-sm" style="border-color:rgba(255,184,0,0.4);color:var(--amber);" onclick="runBenchmark('join_heavy')">Join-Heavy</button>
+    <button class="btn btn-ghost btn-sm" style="border-color:rgba(255,45,120,0.3);color:var(--magenta);" onclick="runBenchmark('anti_patterns')">Anti-Patterns</button>
+    <button class="btn btn-ghost btn-sm" style="border-color:rgba(0,255,157,0.35);color:var(--green);" onclick="runBenchmark('optimized')">Optimised</button>
+    <button class="btn btn-ghost btn-sm btn-icon" style="margin-left:auto;" onclick="closeBenchmarkPicker()" title="Close">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+  <p style="font-size:11.5px;color:var(--text-subtle);margin-top:8px;">
+    Benchmark queries target the <span class="font-mono" style="color:var(--cyan);">employees</span> database (2.8 M rows). Make sure you're connected to it.
+  </p>
+</div>
+{% endblock %}
+
+
+{% block content %}
+
+<!-- Loading -->
+<div id="loadingState" class="loading-panel hidden">
+  <div class="spinner-ring"></div>
+  <p class="progress-label" id="progressText">Initializing analysis engine…</p>
+  <div class="progress-bar-track">
+    <div class="progress-bar-fill" id="progressBar"></div>
+  </div>
+  <span class="progress-count" id="progressCount">0 queries processed</span>
+</div>
+
+<!-- Empty -->
+<div id="emptyState" class="empty-state">
+  <div class="empty-icon">
+    <svg width="46" height="46" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </svg>
+  </div>
+  <h3>No Analysis Yet</h3>
+  <p>Enter the workload file path above and click <strong style="color:var(--cyan);">Analyze</strong> to begin.</p>
+  {% if not db_status %}
+  <div class="banner info" style="margin-top:12px;max-width:400px;">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex-shrink:0;">
+      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+    No database connected. <a href="/" style="color:var(--cyan);font-weight:600;">Connect first →</a>
+  </div>
+  {% endif %}
+</div>
+
+<!-- Results -->
+<div id="resultsDashboard" class="hidden">
+
+  <!-- Export Bar -->
+  <div class="export-bar">
+    <span>Export</span>
+    <button class="btn btn-ghost btn-sm" onclick="exportJSON()">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      JSON
+    </button>
+    <button class="btn btn-ghost btn-sm" onclick="exportHTML()">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      HTML Report
+    </button>
+  </div>
+
+  <!-- Stat Row -->
+  <div class="grid" style="margin-bottom:18px;">
+    <div class="stat-card col-4">
+      <div class="stat-label">Queries Parsed</div>
+      <div class="stat-value cyan" id="valTotalQueries">0</div>
+      <div class="stat-sub">from workload file</div>
+    </div>
+    <div class="stat-card col-4">
+      <div class="stat-label">Health Issues</div>
+      <div class="stat-value magenta" id="valTotalIssues">0</div>
+      <div class="stat-sub">anti-patterns detected</div>
+    </div>
+    <div class="stat-card col-4">
+      <div class="stat-label">Recommendations</div>
+      <div class="stat-value green" id="valTotalRecs">0</div>
+      <div class="stat-sub">indexes, views &amp; partitions</div>
+    </div>
+  </div>
+
+  <!-- Charts Row -->
+  <div class="grid" style="margin-bottom:18px;">
+    <div class="card col-6">
+      <div class="card-header">
+        <div class="card-title">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="18" y="3" width="4" height="18"/><rect x="10" y="8" width="4" height="13"/><rect x="2" y="13" width="4" height="8"/></svg>
+          WHERE Clause Frequency
+        </div>
+        <span class="badge badge-cyan" id="filterBadge">top cols</span>
+      </div>
+      <div class="chart-wrap"><canvas id="filterChart"></canvas></div>
+    </div>
+    <div class="card col-6">
+      <div class="card-header">
+        <div class="card-title">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="18" y="3" width="4" height="18"/><rect x="10" y="8" width="4" height="13"/><rect x="2" y="13" width="4" height="8"/></svg>
+          JOIN Column Frequency
+        </div>
+        <span class="badge badge-purple" id="joinBadge">top cols</span>
+      </div>
+      <div class="chart-wrap"><canvas id="joinChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Health Issues -->
+  <div style="margin-bottom:18px;">
+    <div class="section-header">
+      <div class="section-title">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+          <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+        </svg>
+        Query Health Issues
+      </div>
+      <span class="badge badge-red" id="issuesBadge">0 issues</span>
+    </div>
+    <div id="healthItemsList" style="display:flex;flex-direction:column;gap:5px;"></div>
+    <div id="healthPerfect" class="hidden" style="padding:16px;text-align:center;font-size:13px;color:var(--green);text-shadow:0 0 12px rgba(0,255,157,0.4);">
+      ✅ No anti-patterns detected — perfectly clean workload!
+    </div>
+  </div>
+
+  <!-- Recommendations -->
+  <div>
+    <div class="section-header">
+      <div class="section-title">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polygon points="12 2 2 7 12 12 22 7 12 2"/>
+          <polyline points="2 17 12 22 22 17"/>
+          <polyline points="2 12 12 17 22 12"/>
+        </svg>
+        Tuning Recommendations
+      </div>
+      <span class="badge badge-cyan" id="recBadge">0 actions</span>
+    </div>
+    <div id="recommendationsList" style="display:flex;flex-direction:column;gap:8px;"></div>
+  </div>
+
+  <!-- Query Templates (Fingerprinting) — only visible after a benchmark -->
+  <div id="fingerprintSection" class="hidden" style="margin-top:24px;">
+    <div class="section-header">
+      <div class="section-title">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+        Query Fingerprint Analysis
+        <span style="font-size:10px;font-weight:500;color:var(--text-subtle);margin-left:6px;">— like New Relic &amp; Datadog</span>
+      </div>
+      <span class="badge badge-purple" id="fpBadge">0 templates</span>
+    </div>
+
+    <!-- Summary mini-stats -->
+    <div class="grid" style="margin-bottom:14px;">
+      <div class="stat-card col-4" style="--card-accent:var(--purple);">
+        <div class="stat-label">Unique Templates</div>
+        <div class="stat-value" style="color:var(--purple);" id="fpUniqueTemplates">0</div>
+        <div class="stat-sub">distinct query patterns</div>
+      </div>
+      <div class="stat-card col-4">
+        <div class="stat-label">Total Executions</div>
+        <div class="stat-value cyan" id="fpTotalExec">0</div>
+        <div class="stat-sub">across all templates</div>
+      </div>
+      <div class="stat-card col-4" style="--card-accent:var(--magenta);">
+        <div class="stat-label">Cumulative Rows Est.</div>
+        <div class="stat-value magenta" id="fpTotalRows">0</div>
+        <div class="stat-sub">total DB work across workload</div>
+      </div>
+    </div>
+
+    <!-- Template list -->
+    <div id="fpTemplatesList" style="display:flex;flex-direction:column;gap:6px;"></div>
+  </div>
+
+</div>
+{% endblock %}
