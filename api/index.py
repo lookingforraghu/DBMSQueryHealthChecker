@@ -27,7 +27,12 @@ logging.basicConfig(
 # ─── Absolute paths (works no matter what CWD Flask is started from) ──────────
 BASE_DIR    = os.path.dirname(os.path.abspath(__file__))
 CONFIG_PATH = os.path.join(BASE_DIR, 'config.yaml')
-DB_PATH     = os.path.join(BASE_DIR, 'projects.db')
+
+# Vercel filesystem fix: Use /tmp for SQLite DB
+if os.environ.get('VERCEL'):
+    DB_PATH = '/tmp/projects.db'
+else:
+    DB_PATH = os.path.join(BASE_DIR, 'projects.db')
 
 
 # ─── Projects DB ──────────────────────────────────────────────────────────────
