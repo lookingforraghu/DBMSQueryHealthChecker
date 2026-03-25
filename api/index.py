@@ -1,10 +1,18 @@
+import os
+import sys
+
+# ─── Absolute paths
+# If we are in api/index.py (Vercel), we need to go up one level to find the root files
+BASE_DIR    = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if BASE_DIR not in sys.path:
+    sys.path.insert(0, BASE_DIR)
+
 from flask import Flask, render_template, request, jsonify, session, stream_with_context, Response
 import yaml
 import logging
 import json
 import secrets
 import sqlite3
-import os
 import tempfile
 from datetime import datetime
 
@@ -16,7 +24,9 @@ from modules.explain_parser import ExplainParser
 from modules.samples import get_samples, get_flat_workload
 from modules.fingerprint import WorkloadFingerprinter
 
-app = Flask(__name__)
+app = Flask(__name__, 
+            template_folder=os.path.join(BASE_DIR, 'templates'),
+            static_folder=os.path.join(BASE_DIR, 'static'))
 app.secret_key = secrets.token_hex(16)
 
 logging.basicConfig(
@@ -24,9 +34,6 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
-# ─── Absolute paths
-# If we are in api/index.py (Vercel), we need to go up one level to find the root files
-BASE_DIR    = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_PATH = os.path.join(BASE_DIR, 'config.yaml')
 
 # Vercel filesystem fix: Use /tmp for SQLite DB
