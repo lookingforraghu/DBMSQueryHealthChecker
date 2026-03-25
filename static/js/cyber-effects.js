@@ -217,8 +217,8 @@
   /* ─── 6. NUMBER FLOW / COUNTER (React Bits: NumberFlow) ────- */
   function animateCounter(el, target, duration = 1200) {
     const start = performance.now();
-    const from  = parseFloat(el.textContent) || 0;
-    const to    = parseFloat(target);
+    const from  = parseFloat(el.textContent.replace(/,/g, '')) || 0;
+    const to    = parseFloat(String(target).replace(/,/g, ''));
     if (isNaN(to)) return;
     function frame(now) {
       const t = Math.min((now - start) / duration, 1);

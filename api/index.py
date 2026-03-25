@@ -319,10 +319,7 @@ def api_benchmark_stream():
             eval_recs = evaluator.evaluate(recommendations, collected)
 
             fp_summary    = fingerprinter.summary()
-            logging.info(f"Fingerprint Summary: {fp_summary}")
             fp_top_groups = fingerprinter.top_groups(n=20)
-            for g in fp_top_groups:
-                logging.info(f"Top Group: {g['fid']} - Rows: {g['rows_total']}")
             
             result_payload = {
                 'type':            'result',
